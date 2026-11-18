@@ -1,9 +1,12 @@
+// Keep all dashboard requests same-origin and uncached so status displays stay current.
 const api = async (url, options = {}) => {
   const response = await fetch(url, { cache: 'no-store', ...options });
   if (response.status === 401) throw new Error('Operator authentication required. Reload and sign in.');
   if (!response.ok) throw new Error(`Pulse request failed (${response.status})`);
   return response.json();
 };
+// Build table values with textContent (never innerHTML) so operator-provided notes
+// and diagnostics cannot become executable markup in the dashboard.
 const cell = (row, text, className = '') => {
   const td = document.createElement('td'); td.textContent = text ?? '—';
   if (className) td.className = className; row.append(td); return td;
@@ -13,6 +16,7 @@ const secondsList = values => values?.length ? values.map(v => Number(v).toFixed
 const statusClass = value => `status status-${String(value).toLowerCase()}`;
 
 async function load() {
+  // Load independent panels in parallel to reduce dashboard refresh latency.
   const [overview, efficiency, incidentData] = await Promise.all([
     api('/api/operator/status'), api('/api/operator/metrics'),
     api(`/api/operator/incidents${document.querySelector('#incident-filter').value ? `?state=${document.querySelector('#incident-filter').value}` : ''}`)
@@ -58,6 +62,7 @@ async function load() {
 }
 
 function renderIncidents(incidents) {
+  // Recreate timeline nodes using safe text insertion; notes are untrusted input.
   const container = document.querySelector('#incidents'); container.replaceChildren();
   if (!incidents.length) { const empty = document.createElement('p'); empty.className = 'muted'; empty.textContent = 'No incidents recorded.'; container.append(empty); return; }
   for (const incident of incidents) {
@@ -87,7 +92,9 @@ function renderIncidents(incidents) {
   }
 }
 
+// A status filter only changes the incident query; live service cards continue refreshing.
 document.querySelector('#incident-filter').addEventListener('change', () => load().catch(showError));
 function showError(error) { document.querySelector('#updated-at').textContent = error.message; }
+// Render immediately, then refresh every five seconds while the dashboard is open.
 load().catch(showError);
 setInterval(() => load().catch(showError), 5000);

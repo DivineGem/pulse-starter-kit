@@ -8,11 +8,13 @@
   <script src="/static/operator.js" defer></script>
 </head>
 <body>
+  <!-- Internal diagnostics are served only after HTTP Basic operator authentication. -->
   <header class="topbar"><div><div class="eyebrow">SERVICE RELIABILITY</div><h1>Pulse operator</h1></div><a class="public-link" href="/status" target="_blank" rel="noopener">Public status page ↗</a></header>
   <main>
     <section class="summary-grid" id="pulse-summary" aria-live="polite"></section>
     <section class="panel">
       <div class="section-heading"><div><div class="eyebrow">LIVE MONITORING</div><h2>Services</h2></div><span class="muted" id="updated-at">Loading…</span></div>
+      <!-- Rows are populated from the authenticated operator API by operator.js. -->
       <div class="table-scroll"><table><thead><tr><th>Service</th><th>Status</th><th>Last check</th><th>Response</th><th>Schedule</th><th>Monthly reliability</th><th>Error budget left</th><th>Open incident</th></tr></thead><tbody id="services"></tbody></table></div>
     </section>
     <section class="panel">

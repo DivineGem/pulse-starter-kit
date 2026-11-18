@@ -49,6 +49,24 @@ Operator API calls use HTTP Basic authentication. Useful endpoints:
 
 Pulse only issues GET requests to the configured health and control-state endpoints; it does not invoke service control POST endpoints. The control state is queried only when an incident opens, and remains operator-only. The public page deliberately uses product-facing feature names instead of internal service identifiers.
 
+### Backend layout
+
+Pulse’s Python backend is split by responsibility to make debugging easier:
+
+| File | Responsibility |
+| --- | --- |
+| `pulse/app.py` | FastAPI setup, lifecycle, shared security middleware, and route assembly |
+| `pulse/__init__.py` | Declares the backend as an importable Python package |
+| `pulse/config.py` | Validated environment configuration and monitored service definitions |
+| `pulse/api.py` | Public and authenticated operator HTTP routes |
+| `pulse/monitor.py` | Independent probe workers, status transitions, and incident lifecycle |
+| `pulse/metrics.py` | Monthly reliability/error-budget and scheduler/detection/recovery calculations |
+| `pulse/notifications.py` | Sanitized webhook message creation and durable delivery retries |
+| `pulse/database.py` | SQLite connections, schema migrations, and incident persistence helpers |
+| `pulse/security.py` | Operator authentication and write-request intent checks |
+| `pulse/state.py` | Lock-protected in-memory service state and worker stop signal |
+| `pulse/utils.py` | Shared stateless time and percentile helpers |
+
 ## Configuration and data
 
 Compose environment settings:
