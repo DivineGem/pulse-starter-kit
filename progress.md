@@ -25,7 +25,7 @@
 ### Dashboards and notifications
 
 - Authenticated operator dashboard shows service state, timestamps, latency, monthly reliability/error budget, scheduler/detection/recovery metrics, incidents, and timelines.
-- Public status page and `/api/status` work without login and expose customer-facing names/status only.
+- Public status page and `/api/status` work without login and expose customer-facing names/status only. The page requests a snapshot on open/reload and does not poll continuously.
 - Generic audience-safe status transition messages are delivered to the shared webhook receiver through a persistent retry outbox.
 
 ### Persistence and run experience

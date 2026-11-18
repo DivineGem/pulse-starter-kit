@@ -45,6 +45,7 @@ Pulse gives each service its own scheduler and request timeout. A slow or failed
 - Pulse reads health endpoints and, on relevant transitions, read-only control-state endpoints. It does not call service control POST endpoints.
 - Incident records, notes, probe checks, and a webhook outbox persist in the `pulse-data` Docker volume.
 - Webhook messages use generic customer-safe product wording. Operator diagnostics and notes are not included in public status responses or webhook messages.
+- The public page requests a status snapshot when opened or reloaded; it does not continuously poll. Each GET returns the latest status already collected by Pulse.
 - Reliability and error-budget values are estimates derived from collected probe history; the dashboard shows available history and sample coverage.
 
 ## Operator incident notes

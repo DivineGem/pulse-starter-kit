@@ -21,7 +21,7 @@ This starts Pulse, four mock Acko services, and a webhook receiver:
 | Webhook receiver | http://localhost:9900 | Stands in for chat, email and paging. Anything POSTed to it appears on its page. `GET /api/received` returns the list as JSON; `DELETE /api/received` clears it. |
 | Pulse operator dashboard | http://localhost:8000 | Dedicated username/password login; defaults `operator` / `pulse-local-change-me` |
 | Pulse operator login | http://localhost:8000/login | Separate sign-in page; dashboard does not use a browser authentication popup |
-| Pulse public status page | http://localhost:8000/status | Public, customer-safe service status; no login required |
+| Pulse public status page | http://localhost:8000/status | Public, customer-safe snapshot; fetches when opened/reloaded, no login required |
 
 From inside Docker (for example, if you run Pulse in the same Compose network), use the service names instead: `http://claims:8080/health`, `http://webhook-receiver:9000`.
 
@@ -35,6 +35,7 @@ From inside Docker (for example, if you run Pulse in the same Compose network), 
 - Sends generic, customer-safe transition messages to the shared webhook receiver. Raw errors, internal hostnames, service implementation details, and engineer notes are not included in public responses or notifications.
 - Calculates monthly observed availability and remaining downtime error budget: payments and claims target 99.9%; quotes and notifications target 99%. Reliability is estimated from observed probes and is not a substitute for a contractual SLO measurement system.
 - Shows probe latency, scheduling delay, incident detection and recovery times, incident timelines, and monthly reliability in the authenticated operator dashboard.
+- The public page fetches one current status snapshot per page load; it does not poll in the background. Consumers can reload the page to request a fresh snapshot.
 
 Operators sign in at `/login`. Pulse stores only a hash of a random server-side session token and sends it in an HttpOnly, SameSite=Strict cookie. Configure HTTPS and `OPERATOR_COOKIE_SECURE=true` when deploying behind TLS. Operator APIs require a valid session; login-free public status remains separate. Useful endpoints:
 

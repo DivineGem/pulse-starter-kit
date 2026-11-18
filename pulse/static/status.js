@@ -18,5 +18,6 @@ const refreshStatus = async () => {
     row.append(name, status, when); target.append(row);
   }
 };
-// The public page polls independently from the backend's service-check intervals.
-refreshStatus(); setInterval(refreshStatus, 5000);
+// Fetch once for each page visit/load. Consumers can use the page's normal reload
+// action when they want a newer snapshot; no browser polling runs in the background.
+refreshStatus();

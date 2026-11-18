@@ -421,3 +421,7 @@ A managed ECS/Fargate setup with persistent shared storage and a public load bal
 **User:** One more thing there should be a seperate username and password login on the page not a popup for the operator so that they can easily manage that, also add a functionality so that the operator can edit the node. Build it.
 
 **Assistant:** I’ll replace the browser’s Basic-auth popup with a dedicated login screen and session-based operator access. I’ll also make incident notes editable with author/timestamp history, while keeping the public status page unauthenticated and sanitized.
+
+**User:** the public status page should not be live as it would increase cost, just make it so that whenever the consumer does a get request, the page is updated
+
+**Assistant:** I’ll remove automatic public-page polling so it requests a status snapshot when opened or reloaded. The returned snapshot will use the latest status already collected by Pulse.
