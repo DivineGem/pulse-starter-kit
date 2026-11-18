@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pulse · Operator</title>
+  <link rel="stylesheet" href="/static/pulse.css">
+  <script src="/static/operator.js" defer></script>
+</head>
+<body>
+  <header class="topbar"><div><div class="eyebrow">SERVICE RELIABILITY</div><h1>Pulse operator</h1></div><a class="public-link" href="/status" target="_blank" rel="noopener">Public status page ↗</a></header>
+  <main>
+    <section class="summary-grid" id="pulse-summary" aria-live="polite"></section>
+    <section class="panel">
+      <div class="section-heading"><div><div class="eyebrow">LIVE MONITORING</div><h2>Services</h2></div><span class="muted" id="updated-at">Loading…</span></div>
+      <div class="table-scroll"><table><thead><tr><th>Service</th><th>Status</th><th>Last check</th><th>Response</th><th>Schedule</th><th>Monthly reliability</th><th>Error budget left</th><th>Open incident</th></tr></thead><tbody id="services"></tbody></table></div>
+    </section>
+    <section class="panel">
+      <div class="section-heading"><div><div class="eyebrow">DETECTION & RECOVERY</div><h2>Monitoring efficiency</h2></div></div>
+      <div class="table-scroll"><table><thead><tr><th>Service</th><th>Checks / 30d</th><th>Failed checks</th><th>Observation coverage</th><th>Avg scheduler delay</th><th>Max scheduler delay</th><th>Detection time (s)</th><th>Recovery time (s)</th><th>Open incident age</th></tr></thead><tbody id="metrics"></tbody></table></div>
+    </section>
+    <section class="panel">
+      <div class="section-heading"><div><div class="eyebrow">INCIDENT HISTORY</div><h2>Incidents & timelines</h2></div><select id="incident-filter" aria-label="Filter incidents"><option value="">All incidents</option><option value="OPEN">Open</option><option value="RESOLVED">Resolved</option></select></div>
+      <div id="incidents" class="incident-list"></div>
+    </section>
+    <p class="footnote">Internal diagnostics are restricted to this authenticated operator view. Public updates contain customer-safe status only.</p>
+  </main>
+</body>
+</html>
