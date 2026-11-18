@@ -29,6 +29,9 @@ if not OPERATOR_USERS:
 if len(PASSWORD) < 12 and os.environ.get("OPERATOR_USERS") is None:
     raise RuntimeError("OPERATOR_PASSWORD must be at least 12 characters")
 
+# Secure cookies are opt-in for local HTTP; enable this behind HTTPS in production.
+COOKIE_SECURE = os.environ.get("OPERATOR_COOKIE_SECURE", "false").lower() == "true"
+
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "http://webhook-receiver:9000/pulse")
 
 
@@ -47,6 +50,7 @@ TIMEOUT_SECONDS = positive_number("PROBE_TIMEOUT_SECONDS", "4", 0.2, 30.0)
 FAILURE_THRESHOLD = int(positive_number("FAILURE_THRESHOLD", "2", 1, 10))
 RECOVERY_THRESHOLD = int(positive_number("RECOVERY_THRESHOLD", "2", 1, 10))
 SLOW_THRESHOLD_SECONDS = positive_number("SLOW_THRESHOLD_SECONDS", "1.5", 0.2, 60.0)
+SESSION_TTL_SECONDS = positive_number("OPERATOR_SESSION_TTL_SECONDS", "43200", 300, 604800)
 
 SERVICES: dict[str, dict[str, Any]] = {
     # Probe cadences are independent; ordering here also defines dashboard order.

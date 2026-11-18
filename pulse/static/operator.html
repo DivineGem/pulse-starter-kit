@@ -8,8 +8,8 @@
   <script src="/static/operator.js" defer></script>
 </head>
 <body>
-  <!-- Internal diagnostics are served only after HTTP Basic operator authentication. -->
-  <header class="topbar"><div><div class="eyebrow">SERVICE RELIABILITY</div><h1>Pulse operator</h1></div><a class="public-link" href="/status" target="_blank" rel="noopener">Public status page ↗</a></header>
+  <!-- Internal diagnostics are served only after an operator has logged in. -->
+  <header class="topbar"><div><div class="eyebrow">SERVICE RELIABILITY</div><h1>Pulse operator</h1><span class="muted" id="operator-name"></span></div><div class="top-actions"><a class="public-link" href="/status" target="_blank" rel="noopener">Public status page ↗</a><button id="logout-button" class="secondary-button" type="button">Log out</button></div></header>
   <main>
     <section class="summary-grid" id="pulse-summary" aria-live="polite"></section>
     <section class="panel">

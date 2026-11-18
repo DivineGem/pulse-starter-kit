@@ -1,20 +1,27 @@
 """HTTP routes for public status and authenticated operator operations."""
 from __future__ import annotations
 
-import sqlite3
 import time
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
-from .config import ROOT, SERVICES, TIMEOUT_SECONDS
+from .config import COOKIE_SECURE, ROOT, SERVICES, SESSION_TTL_SECONDS, TIMEOUT_SECONDS
 from .database import connect, db_lock, event, get_open_incident
 from .metrics import monthly_metrics, operator_metrics
-from .security import basic_operator, require_intent
+from .security import (SESSION_COOKIE, clear_session_cookie, current_operator,
+                       issue_session, require_intent,
+                       revoke_session, verify_credentials)
 from .state import BOOT_ID, runtime, state_lock
 from .utils import now_iso
 
 router = APIRouter()
+
+
+class LoginBody(BaseModel):
+    """Credentials submitted by the dedicated operator login form."""
+    username: str = Field(min_length=1, max_length=80)
+    password: str = Field(min_length=1, max_length=256)
 
 
 @router.get("/healthz")
@@ -24,9 +31,45 @@ def healthz():
 
 
 @router.get("/")
-def operator_page(_: str = Depends(basic_operator)):
-    """Serve the internal dashboard only after operator authentication."""
+def operator_page(token: str | None = Cookie(default=None, alias=SESSION_COOKIE)):
+    """Serve the internal dashboard after session login, or redirect to login."""
+    try:
+        current_operator(token)
+    except HTTPException:
+        return RedirectResponse(url="/login", status_code=303)
     return FileResponse(ROOT / "static" / "operator.html")
+
+
+@router.get("/login")
+def login_page():
+    """Serve a normal login page rather than triggering the browser auth popup."""
+    return FileResponse(ROOT / "static" / "login.html")
+
+
+@router.post("/api/login", dependencies=[Depends(require_intent)])
+def login(body: LoginBody, response: Response):
+    """Exchange posted credentials for a random HttpOnly operator session cookie."""
+    username = verify_credentials(body.username, body.password)
+    if username is None:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    token = issue_session(username)
+    response.set_cookie(SESSION_COOKIE, token, max_age=int(SESSION_TTL_SECONDS), path="/",
+                        secure=COOKIE_SECURE, httponly=True, samesite="strict")
+    return {"ok": True, "username": username}
+
+
+@router.post("/api/logout", dependencies=[Depends(require_intent)])
+def logout(response: Response, token: str | None = Cookie(default=None, alias=SESSION_COOKIE)):
+    """Revoke the current server-side session and remove its browser cookie."""
+    revoke_session(token)
+    clear_session_cookie(response)
+    return {"ok": True}
+
+
+@router.get("/api/operator/me")
+def operator_me(username: str = Depends(current_operator)):
+    """Return the current logged-in operator name for the dashboard header."""
+    return {"username": username}
 
 
 @router.get("/status")
@@ -52,7 +95,7 @@ def public_status():
 
 
 @router.get("/api/operator/status")
-def operator_status(_: str = Depends(basic_operator)):
+def operator_status(_: str = Depends(current_operator)):
     """Return internal service diagnostics and reliability details to operators."""
     with state_lock:
         snapshot = {name: data.copy() for name, data in runtime.items()}
@@ -81,7 +124,7 @@ def operator_status(_: str = Depends(basic_operator)):
 
 
 @router.get("/api/operator/metrics")
-def metrics(_: str = Depends(basic_operator)):
+def metrics(_: str = Depends(current_operator)):
     """Combine persisted service metrics with current in-memory scheduler errors."""
     with db_lock, connect() as db:
         result = [operator_metrics(db, name) for name in SERVICES]
@@ -93,7 +136,7 @@ def metrics(_: str = Depends(basic_operator)):
 
 
 @router.get("/api/operator/incidents")
-def incidents(_: str = Depends(basic_operator), state: str | None = None):
+def incidents(_: str = Depends(current_operator), state: str | None = None):
     """List recent incidents and ordered timeline events, optionally filtered."""
     with db_lock, connect() as db:
         if state not in (None, "OPEN", "RESOLVED"):
@@ -104,7 +147,7 @@ def incidents(_: str = Depends(basic_operator), state: str | None = None):
         ).fetchall()
         result = []
         for row in rows:
-            events = db.execute("SELECT kind, at, message, author FROM incident_events WHERE incident_id=? ORDER BY id", (row["id"],)).fetchall()
+            events = db.execute("SELECT id, kind, at, message, author, edited_at FROM incident_events WHERE incident_id=? ORDER BY id", (row["id"],)).fetchall()
             result.append({**dict(row), "events": [dict(item) for item in events]})
     return {"incidents": result}
 
@@ -115,7 +158,7 @@ class NoteBody(BaseModel):
 
 
 @router.post("/api/operator/incidents/{incident_id}/notes", dependencies=[Depends(require_intent)])
-def add_note(incident_id: int, body: NoteBody, author: str = Depends(basic_operator)):
+def add_note(incident_id: int, body: NoteBody, author: str = Depends(current_operator)):
     """Append an attributed note; notes are operator-only and never publicized."""
     note = body.note.strip()
     if not note:
@@ -127,8 +170,31 @@ def add_note(incident_id: int, body: NoteBody, author: str = Depends(basic_opera
     return {"ok": True}
 
 
+@router.patch("/api/operator/incidents/{incident_id}/notes/{event_id}", dependencies=[Depends(require_intent)])
+def edit_note(incident_id: int, event_id: int, body: NoteBody, author: str = Depends(current_operator)):
+    """Edit only a note authored by the current operator; original metadata remains."""
+    note = body.note.strip()
+    if not note:
+        raise HTTPException(400, "Note cannot be empty")
+    with db_lock, connect() as db:
+        event_row = db.execute(
+            "SELECT e.id, e.kind, e.author, i.state FROM incident_events e JOIN incidents i ON i.id=e.incident_id WHERE e.id=? AND i.id=?",
+            (event_id, incident_id),
+        ).fetchone()
+        if event_row is None:
+            raise HTTPException(404, "Incident note not found")
+        if event_row["kind"] != "note":
+            raise HTTPException(400, "Only operator notes can be edited")
+        if event_row["author"] != author:
+            raise HTTPException(403, "You can only edit notes you authored")
+        db.execute("UPDATE incident_events SET message=?, edited_at=? WHERE id=?",
+                   (note, now_iso(), event_id))
+        event(db, incident_id, "note_edited", f"An existing note was edited by {author}.", author)
+    return {"ok": True}
+
+
 @router.get("/api/operator/checks/{service}")
-def check_history(service: str, _: str = Depends(basic_operator), limit: int = 100):
+def check_history(service: str, _: str = Depends(current_operator), limit: int = 100):
     """Return bounded probe history for one allowlisted service."""
     if service not in SERVICES:
         raise HTTPException(404, "Unknown service")

@@ -51,7 +51,12 @@ def init_db() -> None:
         CREATE INDEX IF NOT EXISTS incidents_service_state ON incidents(service, state);
         CREATE TABLE IF NOT EXISTS incident_events (
           id INTEGER PRIMARY KEY, incident_id INTEGER NOT NULL REFERENCES incidents(id),
-          kind TEXT NOT NULL, at TEXT NOT NULL, message TEXT NOT NULL, author TEXT NOT NULL
+          kind TEXT NOT NULL, at TEXT NOT NULL, message TEXT NOT NULL, author TEXT NOT NULL,
+          edited_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS operator_sessions (
+          token_hash TEXT PRIMARY KEY, username TEXT NOT NULL,
+          created_at TEXT NOT NULL, expires_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS notification_outbox (
           id INTEGER PRIMARY KEY, feature TEXT NOT NULL, status TEXT NOT NULL,
@@ -65,6 +70,9 @@ def init_db() -> None:
         incident_columns = {row["name"] for row in db.execute("PRAGMA table_info(incidents)")}
         if "control_mode" not in incident_columns:
             db.execute("ALTER TABLE incidents ADD COLUMN control_mode TEXT")
+        event_columns = {row["name"] for row in db.execute("PRAGMA table_info(incident_events)")}
+        if "edited_at" not in event_columns:
+            db.execute("ALTER TABLE incident_events ADD COLUMN edited_at TEXT")
 
 
 def event(db: sqlite3.Connection, incident_id: int, kind: str, message: str, author: str = "Pulse") -> None:

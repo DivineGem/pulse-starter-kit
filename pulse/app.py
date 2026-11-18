@@ -39,6 +39,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="Pulse", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 app.include_router(api.router)
+app.mount("/", StaticFiles(directory=ROOT / "static", html=True), name="frontend")
 
 
 @app.middleware("http")

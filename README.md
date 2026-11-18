@@ -19,7 +19,8 @@ This starts Pulse, four mock Acko services, and a webhook receiver:
 | `claims` | http://localhost:7003 | http://localhost:7003/health |
 | `notifications` | http://localhost:7004 | http://localhost:7004/health |
 | Webhook receiver | http://localhost:9900 | Stands in for chat, email and paging. Anything POSTed to it appears on its page. `GET /api/received` returns the list as JSON; `DELETE /api/received` clears it. |
-| Pulse operator dashboard | http://localhost:8000 | Authenticated operator view: `operator` / `pulse-local-change-me` by default |
+| Pulse operator dashboard | http://localhost:8000 | Dedicated username/password login; defaults `operator` / `pulse-local-change-me` |
+| Pulse operator login | http://localhost:8000/login | Separate sign-in page; dashboard does not use a browser authentication popup |
 | Pulse public status page | http://localhost:8000/status | Public, customer-safe service status; no login required |
 
 From inside Docker (for example, if you run Pulse in the same Compose network), use the service names instead: `http://claims:8080/health`, `http://webhook-receiver:9000`.
@@ -35,7 +36,7 @@ From inside Docker (for example, if you run Pulse in the same Compose network), 
 - Calculates monthly observed availability and remaining downtime error budget: payments and claims target 99.9%; quotes and notifications target 99%. Reliability is estimated from observed probes and is not a substitute for a contractual SLO measurement system.
 - Shows probe latency, scheduling delay, incident detection and recovery times, incident timelines, and monthly reliability in the authenticated operator dashboard.
 
-Operator API calls use HTTP Basic authentication. Useful endpoints:
+Operators sign in at `/login`. Pulse stores only a hash of a random server-side session token and sends it in an HttpOnly, SameSite=Strict cookie. Configure HTTPS and `OPERATOR_COOKIE_SECURE=true` when deploying behind TLS. Operator APIs require a valid session; login-free public status remains separate. Useful endpoints:
 
 | Endpoint | Access | Purpose |
 | --- | --- | --- |
@@ -44,8 +45,12 @@ Operator API calls use HTTP Basic authentication. Useful endpoints:
 | `/api/operator/metrics` | Operator | 30-day detection, recovery, and scheduler metrics |
 | `/api/operator/incidents` | Operator | Open and resolved incidents with timelines |
 | `/api/operator/incidents/{id}/notes` | Operator | Add a note; POST requires `X-Pulse-Request: 1` |
+| `/api/operator/incidents/{id}/notes/{event_id}` | Operator | Edit a note you authored; PATCH requires `X-Pulse-Request: 1`; edits are timestamped in the incident timeline |
+| `/api/login`, `/api/logout` | Public / operator session | Sign in and sign out; POST requires `X-Pulse-Request: 1` |
 | `/api/operator/checks/{service}` | Operator | Recent probe history |
 | `/healthz` | Public | Pulse process liveness |
+
+The incident timeline includes an **Edit** action for notes authored by the currently signed-in operator. Editing updates the note and timestamp and adds an audit entry to the timeline; operators cannot edit another operator's notes or Pulse-generated events.
 
 Pulse only issues GET requests to the configured health and control-state endpoints; it does not invoke service control POST endpoints. The control state is queried only when an incident opens, and remains operator-only. The public page deliberately uses product-facing feature names instead of internal service identifiers.
 
@@ -76,6 +81,8 @@ Compose environment settings:
 | `OPERATOR_USERNAME` | `operator` | Operator dashboard/API login |
 | `OPERATOR_PASSWORD` | `pulse-local-change-me` | Operator password; minimum 12 characters |
 | `OPERATOR_USERS` | unset | Optional JSON object of individual operator usernames and passwords (overrides the single-user settings) |
+| `OPERATOR_SESSION_TTL_SECONDS` | `43200` | Operator session lifetime, from 5 minutes to 7 days |
+| `OPERATOR_COOKIE_SECURE` | `false` | Set `true` when serving Pulse over HTTPS |
 | `PULSE_PORT` | `8000` | Host port for Pulse, bound to localhost |
 | `WEBHOOK_PORT` | `9900` | Host port for the provided webhook receiver |
 

@@ -28,6 +28,8 @@ services:
       OPERATOR_USERNAME: ${OPERATOR_USERNAME:-operator}
       OPERATOR_PASSWORD: ${OPERATOR_PASSWORD:-pulse-local-change-me}
       OPERATOR_USERS: ${OPERATOR_USERS:-}
+      OPERATOR_SESSION_TTL_SECONDS: ${OPERATOR_SESSION_TTL_SECONDS:-43200}
+      OPERATOR_COOKIE_SECURE: ${OPERATOR_COOKIE_SECURE:-false}
       WEBHOOK_URL: http://webhook-receiver:9000/pulse
     ports: ["127.0.0.1:${PULSE_PORT:-8000}:8000"]
     volumes:

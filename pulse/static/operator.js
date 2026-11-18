@@ -1,7 +1,10 @@
 // Keep all dashboard requests same-origin and uncached so status displays stay current.
 const api = async (url, options = {}) => {
-  const response = await fetch(url, { cache: 'no-store', ...options });
-  if (response.status === 401) throw new Error('Operator authentication required. Reload and sign in.');
+  const response = await fetch(url, { cache: 'no-store', credentials: 'same-origin', ...options });
+  if (response.status === 401) {
+    window.location.assign('/login');
+    throw new Error('Your operator session has expired.');
+  }
   if (!response.ok) throw new Error(`Pulse request failed (${response.status})`);
   return response.json();
 };
@@ -21,6 +24,7 @@ async function load() {
     api('/api/operator/status'), api('/api/operator/metrics'),
     api(`/api/operator/incidents${document.querySelector('#incident-filter').value ? `?state=${document.querySelector('#incident-filter').value}` : ''}`)
   ]);
+  if (currentUsername) document.querySelector('#operator-name').textContent = `Signed in as ${currentUsername}`;
   const summary = document.querySelector('#pulse-summary'); summary.replaceChildren();
   const openCount = incidentData.incidents.filter(i => i.state === 'OPEN').length;
   for (const [title, value, detail] of [
@@ -75,8 +79,20 @@ function renderIncidents(incidents) {
     const list = document.createElement('ol'); list.className = 'timeline';
     for (const item of incident.events) {
       const li = document.createElement('li'); const stamp = document.createElement('time'); stamp.textContent = timeText(item.at);
+      const content = document.createElement('div'); content.className = 'timeline-content';
       const msg = document.createElement('span'); msg.textContent = `${item.author}: ${item.message}`;
-      li.append(stamp, msg); list.append(li);
+      content.append(msg);
+      if (item.edited_at) {
+        const edited = document.createElement('small'); edited.className = 'muted'; edited.textContent = `Edited ${timeText(item.edited_at)}`;
+        content.append(edited);
+      }
+      li.append(stamp, content);
+      if (item.kind === 'note' && item.author === currentUsername) {
+        const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'text-button'; edit.textContent = 'Edit';
+        edit.addEventListener('click', () => showNoteEditor(content, incident.id, item));
+        li.append(edit);
+      }
+      list.append(li);
     }
     article.append(heading, meta, list);
     const form = document.createElement('form'); form.className = 'note-form';
@@ -92,9 +108,43 @@ function renderIncidents(incidents) {
   }
 }
 
+let currentUsername = '';
+
+function showNoteEditor(container, incidentId, noteEvent) {
+  const form = document.createElement('form'); form.className = 'edit-note-form';
+  const input = document.createElement('textarea'); input.maxLength = 2000; input.required = true; input.value = noteEvent.message;
+  const actions = document.createElement('div'); actions.className = 'form-actions';
+  const save = document.createElement('button'); save.type = 'submit'; save.textContent = 'Save note';
+  const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'secondary-button'; cancel.textContent = 'Cancel';
+  cancel.addEventListener('click', () => load().catch(showError));
+  actions.append(save, cancel); form.append(input, actions);
+  container.replaceChildren(form);
+  form.addEventListener('submit', async event => {
+    event.preventDefault(); save.disabled = true;
+    try {
+      await api(`/api/operator/incidents/${incidentId}/notes/${noteEvent.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-Pulse-Request': '1' },
+        body: JSON.stringify({ note: input.value })
+      });
+      await load();
+    } catch (error) { alert(error.message); save.disabled = false; }
+  });
+}
+
 // A status filter only changes the incident query; live service cards continue refreshing.
 document.querySelector('#incident-filter').addEventListener('change', () => load().catch(showError));
+api('/api/operator/me').then(user => {
+  currentUsername = user.username;
+  document.querySelector('#operator-name').textContent = `Signed in as ${currentUsername}`;
+  return load();
+}).catch(showError);
+document.querySelector('#logout-button').addEventListener('click', async () => {
+  try {
+    await api('/api/logout', { method: 'POST', headers: { 'X-Pulse-Request': '1' } });
+    window.location.assign('/login');
+  } catch (error) { showError(error); }
+});
 function showError(error) { document.querySelector('#updated-at').textContent = error.message; }
-// Render immediately, then refresh every five seconds while the dashboard is open.
-load().catch(showError);
+// Refresh live cards every five seconds while the dashboard is open.
 setInterval(() => load().catch(showError), 5000);
